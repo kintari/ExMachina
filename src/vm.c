@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 static const char *OPCODE_STRINGS[256] = {
 #define X(M) #M,

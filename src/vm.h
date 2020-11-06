@@ -15,8 +15,11 @@ struct Frame {
 	const Function *Function;
 };
 
-#define VMFLAG_HALT 			0x01
-#define VMFLAG_BREAKPOINT 0x02
+
+
+#define VMFLAG_HALT 		0x01
+#define VMFLAG_BREAKPOINT   0x02
+
 
 struct VM {
 	struct {
@@ -27,6 +30,7 @@ struct VM {
 	u32 Memory[MEMORY_SIZE];
 	u32 Flags;
 };
+
 
 #define CURRENT_FRAME(vm) (&(vm)->CallStack.Frames[(vm)->CallStack.Depth - 1])
 #define $(x) (x) & 0xff, (x) >> 8 & 0xff, (x) >> 16 & 0xff, (x) >> 24 & 0xff
