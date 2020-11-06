@@ -4,40 +4,13 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build",
+            "label": "make: rebuild project",
             "type": "shell",
             "command": "make",
-            "problemMatcher": [
-                "$gcc"
-            ],
+            "problemMatcher": [],
             "group": {
                 "kind": "build",
                 "isDefault": true
-            },
-            "presentation": {
-                "echo": false,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": false,
-                "clear": true
-            }
-        },
-        {
-            "label": "clean",
-            "type": "shell",
-            "command": "make clean",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": false,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": false,
-                "clear": true
             }
         }
     ]

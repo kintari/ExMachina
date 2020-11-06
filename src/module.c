@@ -101,9 +101,21 @@ Function myModule_Functions[] = (Function[]){
 	}
 };
 
+/*
+ConstantTable myModule_Constants = {
+    .Entries = (Constant *[]) {
+        &((StringConstant) { CONSTANT_STRING, "println", 7 }),
+        &((StringConstant) { CONSTANT_STRING, "fib", 3 }),
+        &((StringConstant) { CONSTANT_STRING, "main", 3 })
+    },
+    .Count = 2
+};
+*/
+
 Module myModule = {
 	.Functions = myModule_Functions,
-	.NumFunctions = countof(myModule_Functions)
+	.NumFunctions = countof(myModule_Functions),
+    .Constants = NULL //&myModule_Constants
 };
 
 const Module *LoadModule() {

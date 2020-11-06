@@ -33,17 +33,20 @@ define rmdir
 rd /S /Q $(call slashes,$1)
 endef
 
+#$(strip $(CC) $(CFLAGS)) -MD -MF $(1:.o=.d) -MT "$@ $(basename $@).d" -c -o $(call slashes,$1) $(call slashes,$2)
 define compile
-$(strip $(CC) $(CFLAGS)) -MD -MF $(1:.o=.d) -MT "$@ $(basename $@).d" -c -o $(call slashes,$1) $(call slashes,$2)
+$(strip $(CC) $(CFLAGS)) -c -o $(call slashes,$1) $(call slashes,$2)
 endef
 
 define link
-$(strip $(CC) $(LDFLAGS)) -v -o $1 $2
+$(strip $(CC) $(LDFLAGS)) -o $1 $2
 endef
 
 .PHONY: all stuff clean
 
-all: $(TARGET)
+all: rebuild
+
+rebuild: clean $(TARGET)
 
 stuff:
 	$(PRINTLN) C_FILES: $(C_FILES)
@@ -62,4 +65,4 @@ $(OUTDIR)/%.o: $(SRC)/%.c | $(OUTDIR)
 clean:
 	-$(call rmdir,$(OUTDIR))
 
--include $(D_FILES)
+#-include $(D_FILES)

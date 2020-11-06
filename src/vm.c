@@ -79,6 +79,7 @@ NORETURN void VM_Panic(const VM *vm, const char *format, ...) {
 		fprintf(stderr, "%02X ", vm->Memory[i]);
 	fputc('\n', stderr);
 	fflush(stderr);
+    fputs("*** end ***\n", stderr);
 	abort();
 }
 
@@ -90,11 +91,18 @@ u32 VM_GetArg(const VM *vm, u32 index, u32 *arg) {
 
 void RunNativeMethod(VM *vm, Frame *frame) {
 	frame->Function->Native(vm);
-	vm->CallStack.Depth -= 1;
-	if (frame->SP > frame->BP) {
-		u32 value = Load(vm, frame->SP - 1);
-		Push(vm, value);
-	}
+    if (frame->SP > frame->BP) {
+        u32 value = Pop(vm);
+	    vm->CallStack.Depth--;
+        Push(vm, value);
+    }
+    else {
+        vm->CallStack.Depth--;
+    }
+}
+
+const char *GetMnemonic(Opcode opcode) {
+	return OPCODE_STRINGS[opcode] ? OPCODE_STRINGS[opcode] : "???";
 }
 
 void StepBytecode(VM *vm) {
@@ -104,9 +112,7 @@ void StepBytecode(VM *vm) {
 	u8 opcode = frame->Function->Body.Bytes[frame->PC];
 	u32 depth = frame->SP - frame->BP;
 
-	const char *mnemonic = OPCODE_STRINGS[opcode];
-	if (mnemonic == NULL)
-		mnemonic = "???";
+	const char *mnemonic = GetMnemonic(opcode);
 
 	TRACE(
 		"%10s+%04Xh %4d %4.02Xh   %s ",

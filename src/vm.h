@@ -15,11 +15,8 @@ struct Frame {
 	const Function *Function;
 };
 
-
-
 #define VMFLAG_HALT 		0x01
 #define VMFLAG_BREAKPOINT   0x02
-
 
 struct VM {
 	struct {
