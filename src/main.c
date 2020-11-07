@@ -1,11 +1,20 @@
 #include <memory.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "vm.h"
 #include "module.h"
 
+
 int main(int argc, const char *argv[]) {
+
+
+
+
+    //printf("a=[%d,%d]\n", a[0], a[1]);
+    
+/*
 	VM vm;
 	memset(&vm, 0, sizeof(vm));
 	vm.Module = LoadModule();
@@ -14,5 +23,7 @@ int main(int argc, const char *argv[]) {
 	vm.CallStack.Frames[vm.CallStack.Depth++] = frame;
 	while ((vm.Flags & VMFLAG_HALT) == 0)
 		VM_Run(&vm);
+*/
+
 	return 0;
 }
