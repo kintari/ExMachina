@@ -53,7 +53,7 @@ u32 Pop(VM *vm) {
 	return Load(vm, --frame->SP);
 }
 
-NORETURN void VM_Panic(const VM *vm, const char *format, ...) {
+void VM_Panic(const VM *vm, const char *format, ...) {
 	fflush(stdout);
 	char buf[1024];
 	va_list args;

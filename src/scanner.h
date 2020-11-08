@@ -6,6 +6,8 @@
 
 typedef struct Scanner Scanner;
 
-Scanner *Scanner_New();
+Scanner *Scanner_New(const u8 *text, u32 length);
 
 void Scanner_Release(Scanner *);
+
+bool Scanner_ReadNext(Scanner *, Token *);

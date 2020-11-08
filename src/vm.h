@@ -36,4 +36,4 @@ struct VM {
 
 void VM_Run(VM *vm);
 
-NORETURN void VM_Panic(const VM *vm, const char *reason, ...);
+void VM_Panic(const VM *vm, const char *reason, ...);

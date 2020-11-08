@@ -55,7 +55,6 @@ void Println(VM *vm) {
 	Frame *frame = CURRENT_FRAME(vm);
 	PANIC_IF(vm, frame->Function == 0);
 	u32 nargs = frame->Function->NumArgs;
-	u32 arg;
 	trace("[stdout] ");
 	for (u32 i = 0; i < nargs; i++) {
 		u32 arg = vm->Memory[ARG_ADDRESS(frame, i)];
@@ -65,8 +64,8 @@ void Println(VM *vm) {
 	CURRENT_FRAME(vm)->SP -= nargs;
 }
 
-Function myModule_Functions[] = (Function[]){
-	(Function) {
+Function myModule_Functions[] = {
+	{
 		.Name = "$global",
 		.NumArgs = 0,
 		.Body = {
@@ -75,7 +74,7 @@ Function myModule_Functions[] = (Function[]){
 		},
 		.Flags = 0
 	},
-	(Function) {
+	{
 		.Name = "main",
 		.NumArgs = 0,
 		.Body = {
@@ -84,7 +83,7 @@ Function myModule_Functions[] = (Function[]){
 		},
 		.Flags = 0
 	},
-	(Function) {
+	{
 		.Name = "fib",
 		.NumArgs = 1,
 		.Body = {
@@ -93,7 +92,7 @@ Function myModule_Functions[] = (Function[]){
 		},
 		.Flags = 0
 	},
-	(Function) {
+	{
 		.Name = "println",
 		.NumArgs = 1,
 		.Native = Println, 

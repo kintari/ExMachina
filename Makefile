@@ -2,67 +2,46 @@
 # ExMachina Makefile
 #
 
-CONFIG:=debug
-PLATFORM:=$(strip $(shell clang -print-target-triple))
+CONFIG:=Debug
 
-CC:=clang
-DEFINES:=UNICODE _UNICODE _DEBUG
-CFLAGS:=$(foreach X,$(DEFINES),-D$X) -g
+ifeq ($(OS),Windows_NT)
+include mk/Windows.mk
+endif
+ifeq ($(OS),Linux)
+include mk/Linux.mk
+endif
 
 SRC:=src
 OUTDIR:=build/bin/$(PLATFORM)/$(CONFIG)
-TARGET:=$(OUTDIR)/vm.exe
+TARGET:=$(OUTDIR)/exmc
 
 #------------------------------------------------------------------------------
 
 C_FILES:=$(wildcard $(SRC)/*.c)
-O_FILES:=$(patsubst $(SRC)/%.c,$(OUTDIR)/%.o,$(C_FILES))
-D_FILES:=$(O_FILES:.o=.d)
+H_FILES:=$(wildcard $(SRC)/*.h)
 
-PRINTLN:=@echo
+OBJECTS:=$(patsubst $(SRC)/%.c,$(OUTDIR)/%.$(OBJ_SUFFIX),$(C_FILES))
 
-define slashes
-$(subst /,\,$1)
-endef
-
-define mkdir
-mkdir $(call slashes,$1)
-endef
-
-define rmdir
-rd /S /Q $(call slashes,$1)
-endef
-
-#$(strip $(CC) $(CFLAGS)) -MD -MF $(1:.o=.d) -MT "$@ $(basename $@).d" -c -o $(call slashes,$1) $(call slashes,$2)
-define compile
-$(strip $(CC) $(CFLAGS)) -c -o $(call slashes,$1) $(call slashes,$2)
-endef
-
-define link
-$(strip $(CC) $(LDFLAGS)) -o $1 $2
-endef
-
-.PHONY: all stuff clean
+.PHONY: all clean build run
 
 all: rebuild
 
+build: $(TARGET)
+
 rebuild: clean $(TARGET)
 
-stuff:
-	$(PRINTLN) C_FILES: $(C_FILES)
-	$(PRINTLN) O_FILES: $(O_FILES)
-	$(PRINTLN) D_FILES: $(D_FILES)
+clean:
+	-$(call rmdir,$(OUTDIR))
 
-$(TARGET): $(O_FILES)
+run:
+	$(call path,./$(TARGET))
+
+$(TARGET): $(OBJECTS)
 	$(call link,$@,$^)
 
 $(OUTDIR):
 	$(call mkdir,$(OUTDIR))
 
-$(OUTDIR)/%.o: $(SRC)/%.c | $(OUTDIR)
+$(OUTDIR)/%.$(OBJ_SUFFIX): $(SRC)/%.c | $(OUTDIR)
 	$(call compile,$@,$?)
 
-clean:
-	-$(call rmdir,$(OUTDIR))
-
-#-include $(D_FILES)

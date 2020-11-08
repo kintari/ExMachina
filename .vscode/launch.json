@@ -1,15 +1,16 @@
 {
     "configurations": [
-        {
-            "name": "(Windows) Launch",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/bin/x86_64-pc-windows-msvc/debug/vm.exe",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false
-        }
+    {
+        "name": "(Windows) Launch",
+        "type": "cppvsdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/build/bin/x86_64-windows-msvc/debug/exmc.exe",
+        "symbolSearchPath": "${workspaceFolder}/build/bin/x86_64-windows-msvc/debug/",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "externalConsole": false
+    }
     ]
 }

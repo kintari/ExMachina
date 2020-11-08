@@ -14,7 +14,7 @@ FETCH_TYPES
 #undef X
 #undef FETCH_TYPES
 
-NORETURN void VM_Panic(const VM *vm, const char *format, ...);
+void VM_Panic(const VM *vm, const char *format, ...);
 
 u32 Load(const VM *vm, u32 addr);
 
