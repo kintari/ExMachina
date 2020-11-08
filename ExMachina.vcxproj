@@ -157,11 +157,16 @@
   <ItemGroup>
     <ClCompile Include="src\main.c" />
     <ClCompile Include="src\module.c" />
-    <ClCompile Include="src\scanner.c" />
+    <ClCompile Include="src\scanner.c">
+      <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
+    </ClCompile>
     <ClCompile Include="src\token.c" />
     <ClCompile Include="src\trace.c" />
     <ClCompile Include="src\vm.c" />
     <ClCompile Include="src\vm_ops.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="scripts\fib.vm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

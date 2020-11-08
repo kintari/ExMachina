@@ -1,14 +1,16 @@
 
 function fib(x : uint) : uint {
     if (x == 0) {
-        return 0;
+        return 0; // end case
     }
     else if (x == 1) {
-        return 1;
+        return 1; // end case
     }
     else {
-        return fib(x-2) + fib(x-1);
+        return fib(x-2) + fib(x-1); // recursive case
     }
 }
 
+/* this is a
+   multiline comment */
 println("fib(5) is ", fib(5));

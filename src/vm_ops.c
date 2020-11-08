@@ -142,7 +142,7 @@ void op_CALL(VM *vm, Frame *frame) {
 	new_frame->SP = new_frame->BP + new_frame->Function->NumArgs;
 
 	TRACE("%s ", new_function->Name);
-	for (int i = 0; i < new_frame->Function->NumArgs; i++)
+	for (u32 i = 0; i < new_frame->Function->NumArgs; i++)
 		TRACE("%d", Load(vm, new_frame->BP + i));
 
 	// Increment caller's PC

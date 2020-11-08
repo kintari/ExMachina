@@ -10,28 +10,27 @@
 #include "module.h"
 #include "scanner.h"
 #include "token.h"
+#include "trace.h"
 
 void printToken(const Token *token) {
     const char *type = TokenType_ToString(token->Type);
-    printf("Token { .Type=%s, .Text='%.*s', .Line=%d, .Column=%d }\n", type, token->Length, token->Text, token->Line, token->Column);
+    TRACE("Token { .Type=%s, .Text='%.*s', .Line=%d, .Column=%d }", type, token->Length, token->Text, token->Line, token->Column);
 }
 
 void scan(const u8 *buf, size_t size) {
     Scanner *scanner = Scanner_New(buf, (u32) size);
     Token token;
-    printf("<begin token list>\n");
+    TRACE("<begin token list>");
     while (Scanner_ReadNext(scanner, &token))
         printToken(&token);
-    printf("<end token list>\n");
+	 TRACE("<end token list>");
 }
 
 int main(int argc, const char *argv[]) {
     FILE *file = NULL;
     const char *filename = "scripts/fib.vm";
-
     if (fopen_s(&file, filename, "rb") != 0) {
         fprintf(stderr, "could not open file '%s' for reading\n", filename);
-        exit(-1);
     }
     else {
         struct stat st;
@@ -45,7 +44,6 @@ int main(int argc, const char *argv[]) {
                     free(buf);
                 }
             }
-            
         }
         fclose(file);
     }
@@ -61,5 +59,5 @@ int main(int argc, const char *argv[]) {
 		VM_Run(&vm);
 #endif
 
-	return 0;
+	return 0;                                         
 }
