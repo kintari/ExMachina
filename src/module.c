@@ -55,12 +55,12 @@ void Println(VM *vm) {
 	Frame *frame = CURRENT_FRAME(vm);
 	PANIC_IF(vm, frame->Function == 0);
 	u32 nargs = frame->Function->NumArgs;
-	trace("[stdout] ");
+	TRACE("[stdout] ");
 	for (u32 i = 0; i < nargs; i++) {
 		u32 arg = vm->Memory[ARG_ADDRESS(frame, i)];
-		trace("%d", arg);
+		TRACE("%d", arg);
 	}
-	trace("\n");
+	TRACE("\n");
 	CURRENT_FRAME(vm)->SP -= nargs;
 }
 

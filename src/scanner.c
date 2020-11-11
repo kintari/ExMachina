@@ -6,6 +6,14 @@
 #include <string.h>
 #include <ctype.h>
 
+#define TAKE_WHILE(sc, tok, test) \
+	do { \
+		u32 pos = sc->Pos; \
+		while (test) \
+			NextChar(sc); \
+		if (tok) tok->Length = sc->Pos - pos; \
+	} while (0)
+
 struct Scanner {
     u32 Pos, Line, Column;
     const u8 *Text;
@@ -48,6 +56,18 @@ static bool Lookahead(Scanner *scanner, int *codePoint) {
     }   
 }
 
+static bool Match1(Scanner *scanner, const char *set) {
+	int pk;
+	return Peek(scanner, &pk) && strchr(set, pk);
+}
+
+static bool Match2(Scanner *scanner, const char *set1, const char *set2) {
+	int pk, la;
+	if (Peek(scanner, &pk) && Lookahead(scanner, &la))
+		return strchr(set1, pk) && strchr(set2, la);
+	return false;
+}
+
 static int NextChar(Scanner *scanner) {
     int ch = scanner->Text[scanner->Pos++];
     if (ch == '\n') {
@@ -68,31 +88,11 @@ static int IsNotNewline(int ch) {
 	return ch != '\n';
 }
 
-bool GetTokenType(TokenType *type, int ch) {
-#define X(a,b) \
-	case b: \
-		*type = Token_ ## a; \
-		return true; \
-
-	switch (ch) {
-		SINGLE_CHAR_TOKENS
-		default:
-			return false;
-	}
-
-#undef X
+static void ScanNumericLiteral(Scanner *scanner, Token *token) {
+	int ch;
+	TAKE_WHILE(scanner, token, Peek(scanner, &ch) && isdigit(ch));
+	token->Type = Token_IntegerLiteral;
 }
-
-#define EVAL(x,y,z) PASTE(x,y,z)
-#define PASTE(x,y,z) x ## y ## z
-
-#define TAKE_WHILE(sc, tok, test) \
-	do { \
-		u32 pos = sc->Pos; \
-		while (test) \
-			NextChar(sc); \
-		if (tok) tok->Length = sc->Pos - pos; \
-	} while (0)
 
 #define INIT_TOKEN(sc) \
 	(Token) { .Line = scanner->Line, .Column = scanner->Column, .Text = &scanner->Text[scanner->Pos], .Length = 0 }
@@ -106,7 +106,7 @@ bool Scanner_ReadNext(Scanner *scanner, Token *token) {
 		 return false;
 	 int ch, lk;
 	 if (!Peek(scanner, &ch)) {
-		 token->Type = Token_EOF;
+		 token->Type = Token_EndOfStream;
 		 scanner->Done = true;
 		 return true;
 	 }
@@ -114,53 +114,63 @@ bool Scanner_ReadNext(Scanner *scanner, Token *token) {
         u32 pos = scanner->Pos;
 		  *token = INIT_TOKEN(scanner);
         if (isspace(ch)) {
+			  // whitespace
 			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && isspace(ch));
         }
-		  else if (ch == '/' && Lookahead(scanner, &lk) && lk == '/') {
+		  else if (Match2(scanner, "/", "/")) {
+			  // single line comment
 			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && ch != '\n');
 		  }
-		  else if (ch == '/' && Lookahead(scanner, &lk) && lk == '*') {
-			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && Lookahead(scanner, &lk) && (ch != '*' || lk != '/'));
+		  else if (Match2(scanner, "/", "*")) {
+			  // multi-line comment
+			  TAKE_WHILE(scanner, token, !Match2(scanner, "*", "/"));
 			  NextChar(scanner);
 			  NextChar(scanner);
 		  }
         else if (isdigit(ch)) {
-			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && isdigit(ch));
-			  token->Type = Token_IntegerLiteral;
+			  // numeric literal
+			  ScanNumericLiteral(scanner, token);
 			  return true;
         }
 		  else if (ch == '-' && Lookahead(scanner, &lk) && isdigit(lk)) {
+			  // negative numeric literal
 			  NextChar(scanner);
-			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && isdigit(ch));
-			  token->Length += 1;
-			  token->Type = Token_IntegerLiteral;
+			  ScanNumericLiteral(scanner, token);
+			  token->Length++;
 			  return true;
 		  }
 		  else if (ch == '"' || ch == '\'') {
-			  int quote = ch;
+			  // string literal
+			  char quote[2] = { ch, '\0' };
 			  NextChar(scanner);
 			  token->Text++;
-			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && ch != quote);
+			  TAKE_WHILE(scanner, token, !Match1(scanner, quote));
 			  NextChar(scanner);
 			  token->Type = Token_StringLiteral;
 			  return true;
 		  }
-        else if (isalpha(ch) || ch == '_') {
-            TAKE_WHILE(scanner, token, Peek(scanner, &ch) && (isalpha(ch) || isdigit(ch) || ch == '_'));
-            token->Type = Token_Identifier;
-            return true;
-        }
-        else if (GetTokenType(&token->Type, ch)) {
-            token->Length = 1;
-            NextChar(scanner);
-            return true;
-        }
-		  else {
-			  token->Length = 1;
-			  token->Type = Token_Unexpected;
+		  else if (isalpha(ch) || ch == '_') {
+			  // keyword or identifier
+			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && (isalpha(ch) || isdigit(ch) || ch == '_'));
+			  TokenType type = TokenType_FromString(token->Text, token->Length);
+			  token->Type = type != Token_None ? type : Token_Identifier;
+			  return true;
+		  }
+		  else if (Match2(scanner, "!=><|&", "=")) {
+			  // comparison operators
+			  token->Type = TokenType_FromString(token->Text, 2);
+			  token->Length = 2;
+			  NextChar(scanner);
 			  NextChar(scanner);
 			  return true;
 		  }
+        else {
+			  token->Length = 1;
+			  TokenType type = TokenType_FromString(&(char) ch, 1);
+			  token->Type = type != Token_None ? type : Token_Unexpected;
+			  NextChar(scanner);
+			  return true;
+        }
     }
     token->Type = Token_Unexpected;
 	 scanner->Done = true;

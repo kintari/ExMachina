@@ -11,6 +11,7 @@
 #include "scanner.h"
 #include "token.h"
 #include "trace.h"
+#include "parser.h"
 
 void printToken(const Token *token) {
     const char *type = TokenType_ToString(token->Type);
@@ -26,6 +27,12 @@ void scan(const u8 *buf, size_t size) {
 	 TRACE("<end token list>");
 }
 
+void parse(const u8 *buf, size_t size) {
+	Scanner *s = Scanner_New(buf, (u32)size);
+	Parser *p = Parser_New(s);
+	Parser_BuildAst(p);
+}
+
 int main(int argc, const char *argv[]) {
     FILE *file = NULL;
     const char *filename = "scripts/fib.vm";
@@ -39,7 +46,8 @@ int main(int argc, const char *argv[]) {
                 u8 *buf = malloc(st.st_size + 1);
                 if (buf) {
                     if (fread(buf, 1, st.st_size, file) == st.st_size) {
-                        scan(buf, st.st_size);                        
+                        scan(buf, st.st_size);
+								parse(buf, st.st_size);
                     }
                     free(buf);
                 }
