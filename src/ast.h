@@ -2,9 +2,12 @@
 
 #include "token.h"
 
+#define AST_CAST(T,node) ((T *) (node))
+
 typedef enum  {
 	AstNode_None,
 	AstNode_Function,
+	AstNode_FunctionCall,
 	AstNode_Return,
 	AstNode_Module,
 	AstNode_Declaration,
@@ -62,6 +65,12 @@ typedef struct AstFunctionNode {
 	AstDeclarationNode *Parameters;
 	AstBlockNode *Body;
 } AstFunctionNode;
+
+typedef struct AstFunctionCallNode {
+	AstNode Base;
+	AstNode *Function;
+	AstNode *Arguments;
+} AstFunctionCallNode;
 
 typedef struct AstModuleNode {
 	AstNode Base;

@@ -29,6 +29,8 @@
 	X(CompareNotEq, "!=") \
 	X(Plus, "+") \
 	X(Minus, "-") \
+	X(Multiply, "*") \
+	X(Divide, "/") \
 
 typedef enum {
 #define X(A,B) Token_ ## A,

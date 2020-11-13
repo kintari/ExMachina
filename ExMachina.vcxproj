@@ -159,7 +159,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ast.c" />
-    <ClCompile Include="src\main.c" />
+    <ClCompile Include="src\main.c">
+      <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
+    </ClCompile>
     <ClCompile Include="src\module.c" />
     <ClCompile Include="src\parser.c" />
     <ClCompile Include="src\scanner.c">

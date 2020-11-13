@@ -1,8 +1,10 @@
 
 #include "parser.h"
 #include "debug.h"
+#include "trace.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 typedef enum {
 	ParseError_None,
@@ -28,6 +30,11 @@ Parser *Parser_New(Scanner *scanner) {
 	return p;
 }
 
+static void SetError(Parser *p, int error) {
+	if (p->Error == 0)
+		p->Error = error;
+}
+
 static bool Peek(Parser *p, TokenType type, Token *token) {
 	bool match = p->Error == ParseError_None && p->Token.Type == type;
 	if (match && token) {
@@ -39,6 +46,7 @@ static bool Peek(Parser *p, TokenType type, Token *token) {
 static bool Match(Parser *p, TokenType type, Token *token) {
 	bool match = Peek(p, type, token);
 	if (match) {
+		TRACE("[parser] matched %s -> '%.*s'", TokenType_ToString(type), p->Token.Length, p->Token.Text);
 		Scanner_ReadNext(p->Scanner, &p->Token);
 	}
 	return match;
@@ -58,6 +66,8 @@ static bool MatchBinaryOperator(Parser *p, Token *token) {
 
 static AstBlockNode *StatementBlock(Parser *p);
 static AstNode *Statement(Parser *p);
+static AstNode *Expression(Parser *p);
+static AstNode *ArgumentList(Parser *p);
 
 static AstIdentifierNode *Identifier(Parser *p) {
 	Token token;
@@ -79,35 +89,98 @@ static AstLiteralNode *Literal(Parser *p) {
 	return NULL;
 }
 
+static AstExpressionNode *MakeBinaryExpression(AstNode *lhs, AstNode *rhs, const Token *oper) {
+	AstExpressionNode *expr = AST_NEW(AstExpressionNode);
+	*expr = (AstExpressionNode) { {.Type = AstNode_Expression, .Left = lhs, .Right = rhs }, .Operator = *oper };
+	TRACE("[parser] returning expression");
+	return expr;
+}
+
+AstNode *Subexpression(Parser *p) {
+	if (Match(p, Token_LParen, NULL)) {
+		AstNode *node = Expression(p);
+		if (Match(p, Token_RParen, NULL)) {
+			return node;
+		}
+		else {
+			SetError(p, -1);
+		}
+	}
+	return NULL;
+}
+
+
+static AstNode *Factor(Parser *p) {
+	AstNode *node = AST_NODE(Literal(p));
+	if (!node) {
+		node = AST_NODE(Identifier(p));
+	}
+	if (!node) {
+		node = Subexpression(p);
+	}
+	if (Match(p, Token_LParen, NULL)) {
+		AstNode *arguments = ArgumentList(p);
+		if (Match(p, Token_RParen, NULL)) {
+			AstFunctionCallNode *fn = AST_NEW(AstFunctionCallNode);
+			*fn = (AstFunctionCallNode) { {.Type = AstNode_FunctionCall }, .Arguments = arguments, .Function = node, };
+			return AST_NODE(fn);
+		}
+		else {
+			SetError(p, -1);
+			return NULL;
+		}
+	}
+	return node;
+}
+
+static AstNode *Term(Parser *p) {
+	AstNode *node = Factor(p);
+	if (node) {
+		Token oper;
+		if (Match(p, Token_Multiply, &oper) || Match(p, Token_Divide, &oper)) {
+			AstNode *tail = Factor(p);
+			if (tail) {
+				return AST_NODE(MakeBinaryExpression(node, tail, &oper));
+			}
+			else {
+				SetError(p, -1);
+			}
+		}
+	}
+	return node;
+}
+
 static AstNode *Expression(Parser *p) {
 	// EXPR ::= EXPR-HEAD EXPR-TAIL
 	// EXPR-HEAD ::= IDENTIFIER
 	// EXPR-HEAD ::= LITERAL
 	// EXPR-HEAD ::= true | false
 	// EXPR-TAIL ::= BINARY-OPERATOR EXPR
-
-	AstNode *head = (AstNode *) Literal(p);
-	if (!head)
-		head = (AstNode *) Identifier(p);
-	if (head) {
+	AstNode *node = Factor(p);
+	if (node) {
 		Token oper;
-		AstNode *tail = NULL;
-		if (MatchBinaryOperator(p, &oper)) {			
-			tail = Expression(p);
+		if (MatchBinaryOperator(p, &oper)) {
+			AstNode *tail = Expression(p);
 			if (tail) {
-				AstExpressionNode *expr = AST_NEW(AstExpressionNode);
-				*expr = (AstExpressionNode) { { .Type = AstNode_Expression, .Left = head, .Right = tail }, .Operator = oper };
-				return AST_NODE(expr);
+				return AST_NODE(MakeBinaryExpression(node, tail, &oper));
 			}
 			else {
-				p->Error = -1;
+				SetError(p, -1);
 			}
 		}
-		else {
-			return head;
-		}
 	}
-	return NULL;
+	return node;
+}
+
+static AstNode *ArgumentList(Parser *p) {
+	AstNode *cell = AST_NEW(AstNode);
+	AstNode *expr = Expression(p);
+	cell->Left = expr;
+	if (expr && Match(p, Token_Comma, NULL)) {
+		AstNode *tail = ArgumentList(p);
+		cell->Right = tail;
+	}
+	return cell;
 }
 
 static AstDeclarationNode *Parameter(Parser *p) {
@@ -118,10 +191,11 @@ static AstDeclarationNode *Parameter(Parser *p) {
 			if (MatchType(p, &type)) {
 				AstDeclarationNode *decl = AST_NEW(AstDeclarationNode);
 				*decl = (AstDeclarationNode) { { .Type = AstNode_Declaration }, .Identifier = identifier, .Type = type };
+				TRACE("[parser] returning parameter");
 				return decl;
 			}
 		}
-		p->Error = -1;
+		SetError(p, -1);
 	}
 	return NULL;
 }
@@ -158,7 +232,7 @@ static AstNode *Function(Parser *p) {
 			}
 		}
 	}
-	p->Error = -1;
+	SetError(p, -1);
 	return NULL;
 }
 
@@ -179,7 +253,7 @@ static AstNode *IfStatement(Parser *p) {
 				}
 			}
 		}
-		p->Error = -1;
+		SetError(p, -1);
 	}
 	return NULL;
 }
@@ -193,7 +267,7 @@ static AstNode *ReturnStatement(Parser *p) {
 			return AST_NODE(node);
 		}
 		else {
-			p->Error = -1;
+			SetError(p, -1);
 		}
 	}
 	return NULL;
@@ -213,7 +287,8 @@ static AstNode *Statement(Parser *p) {
 		return (AstNode *) ReturnStatement(p);
 	}
 	else {
-		return NULL;
+		AstNode *expr = Expression(p);
+		return (expr && Match(p, Token_Semicolon, NULL)) ? expr : NULL;
 	}
 }
 
@@ -235,19 +310,26 @@ static AstBlockNode *StatementBlock(Parser *p) {
 			block->Statements = statements;
 			return block;
 		}
-		p->Error = -1;
+		SetError(p, -1);
 	}
 	return NULL;
 }
 
-static AstModuleNode *Module(Parser *p) {
+static AstNode *Module(Parser *p) {
 	// MODULE ::= STATEMENT-LIST EOF (more to come later)
 	AstNode *statements = StatementList(p);
 	if (statements) {
 		if (Match(p, Token_EndOfStream, NULL)) {
-			AstModuleNode *module = AST_NEW(AstModuleNode);
-			*module = (AstModuleNode) { { .Type = AstNode_Module }, .Statements = statements };
-			return module;
+			//static const char *name = "$global";
+			//AstFunctionNode *function = AST_NEW(AstFunctionNode);
+			//function->Base.Type = AstNode_Function;
+			//function->Identifier = (Token) { .Type = Token_Identifier, .Text = name, .Length = (u32) strlen(name) };
+			//function->Body = AST_NEW(AstBlockNode);
+			//*function->Body = (AstBlockNode) { { .Type = AstNode_Block }, .Statements = statements };
+			AstBlockNode *block = calloc(1, sizeof(AstBlockNode));
+			block->Base.Type = AstNode_Block;
+			block->Statements = statements;
+			return AST_NODE(block);
 		}
 	}
 	return NULL;

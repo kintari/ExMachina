@@ -13,4 +13,6 @@ function fib(x : uint) : uint {
 
 /* this is a
    multiline comment */
-println("fib(5) is ", fib(5));
+//println("fib(5) is", fib(5));
+
+fib(5);

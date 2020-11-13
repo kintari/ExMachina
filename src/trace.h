@@ -12,7 +12,6 @@ void output(const char *format, ...);
 
 #ifdef _DEBUG
 int VerifyFail(const char *msg);
-#define DEBUG_BREAK() { __asm { int 3; } }
 #define VERIFY(expr) ((expr) || VerifyFail(#expr))
 #else
 #define VERIFY(expr) (expr)

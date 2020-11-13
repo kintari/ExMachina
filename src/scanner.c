@@ -104,12 +104,7 @@ bool Scanner_ReadNext(Scanner *scanner, Token *token) {
 	 *token = INIT_TOKEN(scanner);
 	 if (scanner->Done)
 		 return false;
-	 int ch, lk;
-	 if (!Peek(scanner, &ch)) {
-		 token->Type = Token_EndOfStream;
-		 scanner->Done = true;
-		 return true;
-	 }
+	 int ch;
 	 while (Peek(scanner, &ch)) {
         u32 pos = scanner->Pos;
 		  *token = INIT_TOKEN(scanner);
@@ -132,13 +127,6 @@ bool Scanner_ReadNext(Scanner *scanner, Token *token) {
 			  ScanNumericLiteral(scanner, token);
 			  return true;
         }
-		  else if (ch == '-' && Lookahead(scanner, &lk) && isdigit(lk)) {
-			  // negative numeric literal
-			  NextChar(scanner);
-			  ScanNumericLiteral(scanner, token);
-			  token->Length++;
-			  return true;
-		  }
 		  else if (ch == '"' || ch == '\'') {
 			  // string literal
 			  char quote[2] = { ch, '\0' };
@@ -172,7 +160,7 @@ bool Scanner_ReadNext(Scanner *scanner, Token *token) {
 			  return true;
         }
     }
-    token->Type = Token_Unexpected;
+	 token->Type = Token_EndOfStream;
 	 scanner->Done = true;
-    return true;
+	 return true;
 }
