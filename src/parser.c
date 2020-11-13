@@ -46,7 +46,7 @@ static bool Peek(Parser *p, TokenType type, Token *token) {
 static bool Match(Parser *p, TokenType type, Token *token) {
 	bool match = Peek(p, type, token);
 	if (match) {
-		TRACE("[parser] matched %s -> '%.*s'", TokenType_ToString(type), p->Token.Length, p->Token.Text);
+		TRACE("[parser] matched %s -> '%.*s'", TokenType_ToString(type), p->Token.Text.Length, (const char *) p->Token.Text.Bytes);
 		Scanner_ReadNext(p->Scanner, &p->Token);
 	}
 	return match;

@@ -11,7 +11,7 @@
 		u32 pos = sc->Pos; \
 		while (test) \
 			NextChar(sc); \
-		if (tok) tok->Length = sc->Pos - pos; \
+		if (tok) tok->Text.Length = sc->Pos - pos; \
 	} while (0)
 
 struct Scanner {
@@ -94,20 +94,23 @@ static void ScanNumericLiteral(Scanner *scanner, Token *token) {
 	token->Type = Token_IntegerLiteral;
 }
 
-#define INIT_TOKEN(sc) \
-	(Token) { .Line = scanner->Line, .Column = scanner->Column, .Text = &scanner->Text[scanner->Pos], .Length = 0 }
+void InitToken(Token *token, const Scanner *scanner) {
+	token->Line = scanner->Line;
+	token->Column = scanner->Column;
+	token->Text = (String) { .Bytes = (u8 *) &scanner->Text[scanner->Pos], .Length = 0 };
+}
 
 bool Scanner_ReadNext(Scanner *scanner, Token *token) {
     Token t;
     if (token == NULL)
         token = &t;
-	 *token = INIT_TOKEN(scanner);
+	 InitToken(token, scanner);
 	 if (scanner->Done)
 		 return false;
 	 int ch;
 	 while (Peek(scanner, &ch)) {
         u32 pos = scanner->Pos;
-		  *token = INIT_TOKEN(scanner);
+		  InitToken(token, scanner);
         if (isspace(ch)) {
 			  // whitespace
 			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && isspace(ch));
@@ -131,7 +134,7 @@ bool Scanner_ReadNext(Scanner *scanner, Token *token) {
 			  // string literal
 			  char quote[2] = { ch, '\0' };
 			  NextChar(scanner);
-			  token->Text++;
+			  token->Text.Bytes++;
 			  TAKE_WHILE(scanner, token, !Match1(scanner, quote));
 			  NextChar(scanner);
 			  token->Type = Token_StringLiteral;
@@ -140,21 +143,21 @@ bool Scanner_ReadNext(Scanner *scanner, Token *token) {
 		  else if (isalpha(ch) || ch == '_') {
 			  // keyword or identifier
 			  TAKE_WHILE(scanner, token, Peek(scanner, &ch) && (isalpha(ch) || isdigit(ch) || ch == '_'));
-			  TokenType type = TokenType_FromString(token->Text, token->Length);
+			  TokenType type = TokenType_FromString(&token->Text);
 			  token->Type = type != Token_None ? type : Token_Identifier;
 			  return true;
 		  }
 		  else if (Match2(scanner, "!=><|&", "=")) {
 			  // comparison operators
-			  token->Type = TokenType_FromString(token->Text, 2);
-			  token->Length = 2;
+			  token->Text.Length = 2;
+			  token->Type = TokenType_FromString(&token->Text);
 			  NextChar(scanner);
 			  NextChar(scanner);
 			  return true;
 		  }
         else {
-			  token->Length = 1;
-			  TokenType type = TokenType_FromString(&(char) ch, 1);
+			  token->Text.Length = 1;
+			  TokenType type = TokenType_FromString(&token->Text);
 			  token->Type = type != Token_None ? type : Token_Unexpected;
 			  NextChar(scanner);
 			  return true;

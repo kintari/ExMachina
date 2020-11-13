@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <assert.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -17,7 +18,7 @@
 
 void printToken(const Token *token) {
     const char *type = TokenType_ToString(token->Type);
-    TRACE("Token { .Type=%s, .Text='%.*s', .Line=%d, .Column=%d }", type, token->Length, token->Text, token->Line, token->Column);
+    TRACE("Token { .Type=%s, .Text='%.*s', .Line=%d, .Column=%d }", type, token->Text.Length, token->Text.Bytes, token->Line, token->Column);
 }
 
 void scan(const u8 *buf, size_t size) {
@@ -51,7 +52,7 @@ char *indent(char *buf, int count) {
 	return fill(buf, ' ', 2 * count);
 }
 
-#define TOKEN(x) (x).Length, (x).Text
+#define TOKEN(x) (x).Text.Length, (x).Text.Bytes
 
 #define VISITOR_VTBL_FNS(T) \
 	X(Function, T) \
@@ -87,64 +88,69 @@ typedef struct PrintVisitor {
 	int _indent;
 } PrintVisitor;
 
-/*
-void visit(void *visitor, const AstNode *node) {
-	const AstVisitorVtbl *vtbl = (const AstVisitorVtbl *) visitor;
-	switch (node->Type) {
-#define X(f,T) \
-		case AstNode_ ## f: { \
-			vtbl->f(visitor, (const Ast ## f ## Node *) node); \
-			break; \
-		}
-		VISITOR_VTBL_FNS(void)
-#undef X
-	};
-}
-*/
+typedef struct AstEvalVisitor {
+	struct Activation *Frame;
+} AstEvalVisitor;
 
 typedef enum {
 	Value_None,
 	Value_Uint,
-	Value_Function
+	Value_Function,
+	Value_Object
 } ValueType;
+
+typedef void (*FnInvoke)(AstEvalVisitor *, void *);
+
+typedef struct Object {
+	void *Self;
+	FnInvoke OpInvoke;
+} Object;
 
 typedef struct Value {
 	ValueType Type;
 	union {
+		Object *Object;
 		const void *Pointer;
 		uint64_t Uint;
 	};
 } Value;
 
 typedef struct Symbol {
-	const char *Identifier;
+	String Identifier;
 	Value Value;
 } Symbol;
 
 typedef struct Scope {
-	Symbol *Symbols[256];
+	struct Symbol *Symbols[256];
 	size_t NumSymbols;
 } Scope;
 
 typedef struct Activation {
+	const AstFunctionNode *Function;
 	Scope Scopes[256];
 	size_t NumScopes;
 	Value Operands[256];
 	size_t NumOperands;
+	struct Activation *Next;
 } Activation;
 
-typedef struct AstEvalVisitor {
-	Activation Frames[256];
-	size_t NumFrames;
-} AstEvalVisitor;
+int PutSymbol(Scope *scope, const String *identifier, const Value *value) {
+	// TODO: need to see if duplicate
+	Symbol *symbol = calloc(1, sizeof(Symbol));
+	symbol->Identifier = String_Copy(identifier);
+	symbol->Value = *value;
+	scope->Symbols[scope->NumSymbols++] = symbol;
+	return 0;
+}
 
-Symbol *GetSymbol(AstEvalVisitor *v, const char *identifier, size_t length) {
-	for (int i = v->NumFrames - 1; i >= 0; i--) {
-		Activation *frame = &v->Frames[i];
-		for (int j = frame->NumScopes - 1; j >= 0; j--) {
-			Scope *scope = &frame->Scopes[j];
-			for (int k = 0; k < scope->NumSymbols; k++) {
-				if (strncmp(scope->Symbols[k]->Identifier, identifier, length) == 0)
+Symbol *GetSymbol(AstEvalVisitor *v, const String *identifier) {
+	assert(v->Frame);
+	for (Activation *frame = v->Frame; frame; frame = frame->Next) {
+		assert(frame->NumScopes > 0);
+		for (size_t j = frame->NumScopes; j > 0; j--) {
+			Scope *scope = &frame->Scopes[j-1];
+			for (size_t k = 0; k < scope->NumSymbols; k++) {
+				if (String_Equals(&scope->Symbols[k]->Identifier, identifier))
 					return scope->Symbols[k];
 			}
 		}
@@ -152,50 +158,132 @@ Symbol *GetSymbol(AstEvalVisitor *v, const char *identifier, size_t length) {
 	return NULL;
 }
 
+Scope *CurrentScope(AstEvalVisitor *v) {
+	assert(v->Frame->NumScopes > 0);
+	return &v->Frame->Scopes[v->Frame->NumScopes - 1];
+}
+
+Scope *PushScope(AstEvalVisitor *v) {
+	assert(v->Frame);
+	Scope *scope = &v->Frame->Scopes[v->Frame->NumScopes++];
+	scope->NumSymbols = 0;
+	return scope;
+}
+
+void PopScope(AstEvalVisitor *v) {
+	assert(v->Frame);
+	assert(v->Frame->NumScopes > 0);
+	Scope *scope = &v->Frame->Scopes[--v->Frame->NumScopes];
+	for (size_t j = 0; j < scope->NumSymbols; j++) {
+		Symbol *symbol = scope->Symbols[j];
+		free(symbol->Identifier.Bytes);
+	}
+}
+
+Activation *PushFrame(AstEvalVisitor *v) {
+	Activation *frame = calloc(1, sizeof(Activation));
+	frame->NumScopes = 1;
+	Scope *scope = &frame->Scopes[0];
+	scope->NumSymbols = 0;
+	frame->Next = v->Frame;
+	v->Frame = frame;
+	return frame;
+}
+
+void PopFrame(AstEvalVisitor *v) {
+	Activation *frame = v->Frame;
+	while (frame->NumScopes > 0) {
+		PopScope(v);
+	}
+	v->Frame = frame->Next;
+	free(frame);
+}
+
+void PushOperand(AstEvalVisitor *v, const Value *valuep) {
+	v->Frame->Operands[v->Frame->NumOperands++] = *valuep;
+}
+
+bool PopOperand(AstEvalVisitor *v, Value *valuep) {
+	if (v->Frame->NumOperands > 0) {
+		if (valuep) *valuep = v->Frame->Operands[v->Frame->NumOperands - 1];
+		--v->Frame->NumOperands;
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+
+static bool ToBoolean(const Value *value) {
+	switch (value->Type) {
+		case Value_Uint:
+			return value->Uint != 0;
+		case Value_Object:
+			return value->Object != NULL;
+		default:
+			abort();
+	}
+}
+
 void eval(AstEvalVisitor *v, const AstNode *node);
 
 void eval_Function(AstEvalVisitor *v, const AstFunctionNode *function) {
-	Symbol *sym = calloc(1, sizeof(sizeof(Symbol)));
-	char *identifier = malloc(function->Identifier.Length + 1);
-	memcpy(identifier, function->Identifier.Text, function->Identifier.Length);
-	identifier[function->Identifier.Length] = '\0';
-	sym->Identifier = identifier;
-	sym->Value = (Value) { .Type = Value_Function, .Pointer = function };
-	Activation *frame = &v->Frames[v->NumFrames - 1];
-	Scope *scope = &frame->Scopes[frame->NumScopes - 1];
-	scope->Symbols[scope->NumSymbols++] = sym;
+	Object *object = calloc(1, sizeof(Object));
+	object->Self = function->Body;
+	object->OpInvoke = eval;
+	PutSymbol(CurrentScope(v), &function->Identifier.Text, &(Value) { .Type = Value_Object, .Object = object });
 }
 
 void eval_FunctionCall(AstEvalVisitor *v, const AstFunctionCallNode *node) {
-	Activation *caller = &v->Frames[v->NumFrames - 1];
 
-	// Get the function
+	// Evaluate the expression that resolves to target function
 	eval(v, node->Function);
-	const AstFunctionNode *f = (const AstFunctionNode *) caller->Operands[--caller->NumOperands].Pointer;
 
-	const AstNode *argument = node->Arguments;
-	int count = 0;
-	while (argument) {
-		eval(v, argument->Left);
-		const AstNode *next = argument->Right;
-		++count;
-		argument = next;
+	// Get the result off the stack
+	Value operand;
+	if (PopOperand(v, &operand)) {
+		if (operand.Type != Value_Object) {
+			// raise a type error
+			abort();
+		}
+		else if (operand.Object->OpInvoke == NULL) {
+			// another kind of error
+			abort();
+		}
+		else {
+			Activation *caller = v->Frame;
+
+			// Evaluate function arguments
+			const AstNode *argument = node->Arguments;
+			int count = 0;
+			while (argument) {
+				eval(v, argument->Left);
+				const AstNode *next = argument->Right;
+				++count;
+				argument = next;
+			}
+
+			Activation *callee = PushFrame(v);
+
+			// Move operands into callee's frame
+			for (int i = 0; i < count; i++) {
+				callee->Operands[callee->NumOperands++] = caller->Operands[--caller->NumOperands];
+			}
+
+			// Evaluate function in callee context
+			Object *object = operand.Object;
+			operand.Object->OpInvoke(v, object->Self);
+
+			// Push the return value onto the caller's stack
+			Value returnValue;
+			if (PopOperand(v, &returnValue)) {
+				caller->Operands[caller->NumOperands++] = returnValue;
+			}
+
+			// Pop callee frame
+			PopFrame(v);
+		}
 	}
-
-	v->NumFrames++;
-
-	Activation *callee = &v->Frames[v->NumFrames - 1];
-	callee->NumOperands = 0;
-
-	// Move operands into callee's frame
-	for (int i = 0; i < count; i++) {
-		callee->Operands[callee->NumOperands++] = caller->Operands[--caller->NumOperands];
-	}
-
-	// Evaluate function in callee context
-	eval(v, (const AstNode *) f->Body);
-
-	// FIXME: return value
 }
 
 void eval_Return(AstEvalVisitor *v, const AstReturnNode *node) {
@@ -211,22 +299,45 @@ void eval_Declaration(AstEvalVisitor *v, const AstDeclarationNode *node) {
 }
 
 void eval_Block(AstEvalVisitor *v, const AstBlockNode *block) {
-	AST_FOREACH(x, block->Statements, eval(v, x));
+	PushScope(v);
+	for (AstNode *statement = block->Statements; statement != NULL; statement = statement->Right) {
+		eval(v, statement);
+		while (v->Frame->NumOperands > 0)
+			PopOperand(v, NULL);
+	}
+	PopScope(v);
 }
 
 void eval_If(AstEvalVisitor *v, const AstIfNode *node) {
-
+	assert(node->Condition);
+	eval(v, node->Condition);
+	Value result;
+	if (PopOperand(v, &result)) {
+		bool b = ToBoolean(&result);
+		if (b) {
+			eval(v, node->TrueBranch);
+		}
+		else {
+			eval(v, node->FalseBranch);
+		}
+	}
 }
 
 void eval_Identifier(AstEvalVisitor *v, const AstIdentifierNode *node) {
-	Symbol *sym = GetSymbol(v, node->Token.Text, node->Token.Length);
-	Activation *frame = &v->Frames[v->NumFrames - 1];
-	frame->Operands[frame->NumOperands++] = sym->Value;
+	Symbol *sym = GetSymbol(v, &node->Token.Text);
+	if (!sym) {
+		TRACE("failed to resolve symbol '%.*s'", node->Token.Text.Length, (const char *)node->Token.Text.Bytes);
+		abort(); // TODO: this is a legitimate runtime error, need to figure out how to handle it
+	}
+	else {
+		Activation *frame = v->Frame;
+		frame->Operands[frame->NumOperands++] = sym->Value;
+	}
 }
 
 void eval_Literal(AstEvalVisitor *v, const AstLiteralNode *node) {
-	long x = strtol(node->Token.Text, NULL, 10);
-	Activation *frame = &v->Frames[v->NumFrames - 1];
+	long x = strtol(node->Token.Text.Bytes, NULL, 10);
+	Activation *frame = v->Frame;
 	frame->Operands[frame->NumOperands++] = (Value) { .Type = Value_Uint, .Uint = x };
 }
 
@@ -253,6 +364,7 @@ void eval(AstEvalVisitor *v, const AstNode *node) {
 				eval_Block(v, (const AstBlockNode *) node);
 				break;
 			case AstNode_If:
+				eval_If(v, (const AstIfNode *) node);
 				break;
 			case AstNode_Identifier:
 				eval_Identifier(v, (const AstIdentifierNode *) node);
@@ -359,16 +471,47 @@ void print(const AstNode *node, int level) {
 	}
 }
 
+void io_println_OpInvoke(AstEvalVisitor *v, void *unused) {
+	char buf[1024];
+	char *ptr = buf;
+	char *endp = buf + sizeof(buf);
+	size_t offset = 0;
+	while(v->Frame->NumOperands) {
+		Value operand;
+		PopOperand(v, &operand);
+		switch (operand.Type) {
+			case Value_Uint: {
+				int nc = snprintf(ptr, endp - ptr, "%zu", operand.Uint);
+				if (nc > 0)
+					ptr += nc;
+				if (v->Frame->NumOperands > 0) {
+					*ptr = ' '; ptr++;
+					*ptr = '\0';
+				}
+				break;
+			}
+		}
+	}
+	TRACE("%s", buf);
+}
+
+
 void parse(const u8 *buf, size_t size) {
 	Scanner *s = Scanner_New(buf, (u32)size);
 	Parser *p = Parser_New(s);
-	AstNode *node = Parser_BuildAst(p);
-	print(node, 0);
+	AstNode *program = Parser_BuildAst(p);
+	print(program, 0);
 	
 	AstEvalVisitor *v = calloc(1, sizeof(AstEvalVisitor));
-	v->NumFrames++;
-	v->Frames[v->NumFrames - 1].NumScopes++;
-	eval(v, node);
+	v->Frame = PushFrame(v); // FIXME: no null functions
+	Scope *scope = CurrentScope(v);
+	
+	Object *println = calloc(1, sizeof(Object));
+	println->OpInvoke = io_println_OpInvoke;
+	println->Self = NULL;
+	Value value = { .Type = Value_Object, .Object = println };
+	PutSymbol(scope, &(String) { .Bytes = "println", .Length = 7 }, &value);
+	eval(v, program);
 }
 
 int main(int argc, const char *argv[]) {
