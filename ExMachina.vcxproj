@@ -147,6 +147,7 @@
     <ClInclude Include="src\ast.h" />
     <ClInclude Include="src\config.h" />
     <ClInclude Include="src\debug.h" />
+    <ClInclude Include="src\eval.h" />
     <ClInclude Include="src\function.h" />
     <ClInclude Include="src\io.h" />
     <ClInclude Include="src\module.h" />
@@ -161,6 +162,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ast.c" />
+    <ClCompile Include="src\eval.c" />
+    <ClCompile Include="src\io.c" />
     <ClCompile Include="src\main.c">
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</PreprocessToFile>
     </ClCompile>

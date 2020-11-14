@@ -4,6 +4,16 @@
 
 #define AST_CAST(T,node) ((T *) (node))
 
+#define AST_FOREACH(var,node,func) \
+	do { \
+		AstNode *var = node; \
+		while (var) { \
+			AstNode *next = var->Right; \
+			(func); \
+			var = next; \
+		} \
+	}  while (0)
+
 typedef enum  {
 	AstNode_None,
 	AstNode_Function,
